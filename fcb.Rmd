@@ -1,0 +1,139 @@
+---
+title: "FC Barcelona in La Liga 2012-2017"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: row
+    vertical_layout: fill
+    source_code: embed
+    theme: bootstrap
+---
+
+```{r setup, include=FALSE}
+library(flexdashboard)
+library(knitr)
+library(DT)
+library(ggplot2)
+library(plotly)
+library(dplyr)
+library(shiny)
+```
+
+```{r}
+setwd("~/koulu/tilasto/omat/fcb")
+data = read.csv("fcbdata.csv", header=T)
+attach(data)
+```
+
+Summary
+===========================
+
+Row
+---------------------------
+
+### Games
+
+```{r}
+valueBox(length(X), icon = "fa-futbol")
+```
+
+### Average Goals Scored
+
+```{r}
+valueBox(round(mean(goalsScored),2))
+```
+
+### Average Goals Conceded
+
+```{r}
+valueBox(round(mean(goalsConceded),2))
+```
+
+### Average Shots On Target
+
+```{r}
+valueBox(round(mean(shotsTotal),2))
+```
+
+### Average Dribbles Won
+
+```{r}
+valueBox(round(mean(dribblesWon),2))
+```
+
+Row {.tabset .tabset-fade}
+--------------------------
+
+### Possession
+
+```{r}
+plot(density(possession), xlab="", lwd=3, col="darkred", main="Ball Possession")
+abline(v=mean(possession), lwd=1.7)
+abline(v=quantile(possession, c(0.1,0.9)), col=4, lwd=2)
+
+legend("topleft", legend=c("Mean", "80% Interval"), lty=c(1,1), col=c(1,4))
+```
+
+### Pass Success
+
+```{r}
+plot(density(passSucces), xlab="", lwd=3, col="darkred", main="Succesful Passes")
+abline(v=mean(passSucces), lwd=1.7)
+abline(v=quantile(passSucces, c(0.1,0.9)), col=4, lwd=2)
+
+legend("topleft", legend=c("Mean", "80% Interval"), lty=c(1,1), col=c(1,4))
+```
+
+Home / Away
+===========================
+
+### Results
+
+```{r}
+Result = c("Loss", "Draw", "Win")
+h = data$pts[homeGame==1]
+a = data$pts[homeGame==0]
+home = c(sum(h==0), sum(h==1), sum(h==3))
+away = c(sum(a==0), sum(a==1), sum(a==3))
+df = data.frame(Result, home, away)
+df$Result = factor(df$Result, levels=c("Loss", "Draw", "Win"))
+
+p = plot_ly(df, x= ~Result, y= ~away, type="bar", name="Away") %>%
+  add_trace(y = ~home, name="Home") %>%
+  layout(barmode = "group", yaxis=list(title = "Count"))
+p
+```
+
+### Shots
+
+```{r}
+n = length(data$X)
+df1 = data.frame(homeGame, Shots=shotsTarget, Type=rep("On Target",n))
+df2 = data.frame(homeGame, Shots=shotsTotal, Type=rep("Total",n))
+df = rbind(df1,df2)
+df$homeGame = factor(df$homeGame, levels=0:1, labels=c("Away", "Home"))
+
+p = plot_ly(df, x = ~Type, y = ~Shots, color = ~homeGame, type="box") %>%
+  layout(boxmode = "group")
+p
+```
+
+
+```{r}
+detach(data)
+```
+
+
+Opponents
+====================
+
+```{r}
+data = read.csv("fcbopponents.csv", header=T)
+```
+
+```{r}
+datatable(data, rownames=T, filter="top")
+```
+
+
+
+
