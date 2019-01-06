@@ -1,0 +1,212 @@
+---
+title: "Data management"
+author: "Mikael Paajanen"
+date: "22 toukokuuta 2018"
+output: pdf_document
+---
+
+
+```{r}
+df = read.csv(file = "FootballEurope.csv", header = TRUE, sep = ",")
+```
+
+```{r}
+df$goalDiffHome = df$homeGoalFT - df$awayGoalFT
+df$shotRatioHome = df$homeShotsTotalFT / df$awayShotsTotalFT
+df$shotRatioOnTargetHome = df$homeShotsOnTargetFT / df$awayShotsOnTargetFT
+```
+
+
+```{r}
+# mode possession FT is the 45th column
+# We multiply every input given as fraction by 100 to be precentage
+for (i in 1:length(df[,1])) if (df[i,45]<1) df[i,45] = df[i,45]*100
+# plot(df$homePossessionFT,df$goalDiffHome)
+```
+
+
+
+```{r}
+df$homeWin = cut(df$goalDiffHome, breaks = c(-Inf,-1,0,Inf))
+df$homeWin = as.numeric(df$homeWin) - 2
+df$homeWin1 = as.numeric(cut(df$goalDiffHome, breaks = c(-Inf,0,Inf)))-1
+```
+
+
+
+
+## New data set for a team with all matches (home/away)
+
+```{r}
+dfAllFCB1 = subset(df, homeTeam == "Team" | awayTeam == "Team")
+```
+
+```{r}
+n = length(dfAllFCB1$X)
+homeGame = rep(0,n)
+dfAllFCB = data.frame(homeGame)
+# Home game or not 
+for (i in 1:n) if (dfAllFCB1[i,57] != "Team") dfAllFCB[i,1] = 1
+
+```
+
+```{r}
+# opposition
+opposition = rep("",n)
+for (i in 1:n) {
+  if (dfAllFCB[i,1] == 0) {
+    opposition[i] = as.character(dfAllFCB1[i,70])
+  }
+  else {
+    opposition[i] = as.character(dfAllFCB1[i,57])
+  }
+}
+dfAllFCB$opposition = opposition
+```
+
+```{r}
+# goals scored
+Bgoals = rep(0,n)
+for (i in 1:n) {
+  if (dfAllFCB[i,1] == 0) {
+    Bgoals[i] = dfAllFCB1[i,79]
+  }
+  else {
+    Bgoals[i] = dfAllFCB1[i,53]
+  }
+}
+dfAllFCB$goalsScored = Bgoals
+```
+
+```{r}
+# goals conceded
+gc = rep(0,n)
+for (i in 1:n) {
+  if (dfAllFCB[i,1] == 1) {
+    gc[i] = dfAllFCB1[i,79]
+  }
+  else {
+    gc[i] = dfAllFCB1[i,53]
+  }
+}
+dfAllFCB$goalsConceded = gc
+```
+
+```{r}
+# points acheved
+# 3 for win, 1 for draw, 0 for loss
+pts = rep(0,n)
+for (i in 1:n) {
+  if (dfAllFCB[i,3] > dfAllFCB[i,4]) pts[i] = 3
+  else if (dfAllFCB[i,3] == dfAllFCB[i,4]) pts[i] = 1
+}
+dfAllFCB$pts = pts
+```
+
+```{r}
+# possession
+possession = rep(0,n)
+for (i in 1:n) {
+  if (dfAllFCB[i,1] == 1) possession[i] = dfAllFCB1[i,45]
+  else possession[i] = 100 - dfAllFCB1[i,45]
+}
+dfAllFCB$possession = possession
+```
+
+```{r}
+# "team classification"
+# top teams: in la liga during seasons 2012/2013 - 2016/2017: FC Barcelona, Real Madrid, Atletico Madrid
+# second class: Sevilla, Valencia, Villarreal, Athletic Bilbao, Real Sociedad
+# these teams ^^ have been fraquently in top 7 (Europa cup games)
+# the rest
+oppClass = rep(0,n)
+clss1 = c("Real Madrid","Atletico","Barcelona")
+clss2 = c("Sevilla", "Valencia", "Villarreal", "Real Sociedad")
+for (i in 1:n) {
+  if (match(dfAllFCB$opposition[i], clss1, nomatch = 0) > 0) oppClass[i] = 1
+  else if (match(dfAllFCB$opposition[i], clss2, nomatch = 0) > 0) oppClass[i] = 2
+  else oppClass[i] = 3
+}
+dfAllFCB$oppClass = oppClass
+```
+
+
+```{r}
+# shots total and on target
+st = rep(0,n)
+stt = rep(0,n)
+for (i in 1:n) {
+  if (dfAllFCB[i,1] == 1) {
+    st[i] = dfAllFCB1[i,66]
+    stt[i] = dfAllFCB1[i,73]
+  }
+  else {
+    st[i] = dfAllFCB1[i,93]
+    stt[i] = dfAllFCB1[i,17]
+  }
+}
+dfAllFCB$shotsTotal = st
+dfAllFCB$shotsTarget = stt
+```
+
+
+```{r}
+# Corners won
+# Dribbles won
+crns = rep(0,n)
+drbbls = rep(0,n)
+for (i in 1:n) {
+  if (dfAllFCB[i,1] == 1) {
+    crns[i] = dfAllFCB1[i,25]
+    drbbls[i] = dfAllFCB1[i,55]
+  }
+  else {
+    crns[i] = dfAllFCB1[i,69]
+    drbbls[i] = dfAllFCB1[i,23]
+  }
+}
+dfAllFCB$corners = crns
+dfAllFCB$dribblesWon = drbbls
+```
+
+```{r}
+# Cluster
+clus = rep(0,n)
+for (i in 1:n) {
+  if (dfAllFCB$oppClass[i] == 1) clus[i] = 1
+  else if (dfAllFCB$oppClass[i] == 2 & dfAllFCB$homeGame[i] == 0) clus[i] = 2
+  else if (dfAllFCB$oppClass[i] == 2 & dfAllFCB$homeGame[i] == 1) clus[i] = 3
+  else if (dfAllFCB$oppClass[i] == 3 & dfAllFCB$homeGame[i] == 0) clus[i] = 4
+  else clus[i] = 5
+}
+dfAllFCB$clust = clus
+```
+
+```{r}
+# tackels 88 away 77 home
+# pass succes 67 home 6 away
+passss = rep(0,n)
+tckls = rep(0,n)
+for (i in 1:n) {
+  if (dfAllFCB[i,1] == 1) {
+    passss[i] = dfAllFCB1[i,67]
+    tckls[i] = dfAllFCB1[i,77]
+  }
+  else {
+    passss[i] = dfAllFCB1[i,6]
+    tckls[i] = dfAllFCB1[i,88]
+  }
+}
+dfAllFCB$tackles = tckls
+dfAllFCB$passSucces = passss
+```
+
+```{r}
+# win or not
+win = rep(0,n)
+for (i in 1:n) if (dfAllFCB$pts[i] == 3) win[i] = 1
+dfAllFCB$win = win
+```
+
+
+

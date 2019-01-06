@@ -1,0 +1,13 @@
+model {
+
+    for (i in 1:n) {
+
+        y[i] ~ dpois(lambda[i])
+        lambda[i] ~ dgamma(a, b)
+
+    }
+
+    a ~ dgamma(0.01, 0.01)
+    b ~ dgamma(0.01, 0.01)
+
+}

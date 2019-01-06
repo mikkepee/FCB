@@ -1,0 +1,11 @@
+model {
+
+    for (i in 1:s) {
+
+        y[i] ~ dpois(theta[i])
+        theta[i] = lambda[i]*n[i]
+        lambda[i] ~ dgamma(a, b)
+
+    }
+
+}

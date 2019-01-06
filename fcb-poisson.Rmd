@@ -1,0 +1,324 @@
+---
+title: "Fcb-poisson"
+author: "Mikael Paajanen"
+date: "22 toukokuuta 2018"
+output: pdf_document
+---
+
+```{r}
+# "C:/Users/Mikael/Documents/koulu/UPC/Bayes/project/"
+# "E:/Bayes/project/"
+path.bug <- "C:/Users/Mikael/Documents/koulu/UPC/Bayes/project/"
+# install.packages('R2jags', repos = "http://cran.fhcrc.org/")
+library(R2jags)
+```
+
+
+
+```{r}
+dff = read.csv(file = "fcbdata.csv", header = TRUE, sep = ",")
+```
+
+
+```{r}
+pairs(data=dff,~goalsScored+pts+shotsTarget+homeGame+oppClass+tackles+possession+passSucces)
+library(corrgram)
+corrgram(dff)
+library(corrplot)
+dffM = dff[,-3]
+dffM = cor(dffM)
+
+corrplot(dffM, method="number")
+```
+
+
+
+
+```{r}
+# Exploratory
+table(dff$homeGame)
+table(dff$goalsScored)
+plot(table(dff$goalsScored))
+table(dff$goalsConceded)
+plot(table(dff$goalsConceded))
+table(dff$pts)
+plot(density(dff$possession))
+table(dff$oppClass)
+table(dff$shotsTotal)
+plot(table(dff$shotsTotal))
+table(dff$shotsTarget)
+plot(table(dff$shotsTarget))
+table(dff$corners)
+plot(table(dff$corners))
+table(dff$dribblesWon)
+plot(table(dff$dribblesWon))
+table(dff$clust)
+table(dff$tackles)
+plot(table(dff$tackles))
+boxplot(dff$tackles)
+plot(density(dff$passSucces))
+table(dff$win)
+```
+
+
+
+## The goal count per game (considering same in all)
+
+```{r}
+y = dff$goalsScored
+
+n=length(y)
+
+# prior parameters assuming average goals scored is 2.5 per game
+a = 2.5
+b = 1
+
+parameters = c("lambda")
+data = list(y=y,n=n,a=a,b=b)
+initials = list(list(lambda=0.1),list(lambda=5))
+
+Iter <- 2500
+Burn <- 500
+Chain <- 2
+Thin <- 1
+
+fcbpois1 = jags(data, inits = initials, parameters.to.save=parameters, model=paste(path.bug,"goalcount1.bug",sep=""), n.iter=(Iter*Thin+Burn), n.burnin=Burn, n.thin=Thin, n.chains=Chain)
+
+print(fcbpois1, digits=4)
+
+mufcb1 = fcbpois1$BUGSoutput$mean$lambda
+
+# traceplot check manually
+# traceplot(fcbpois1, varname=c("lambda"))
+```
+
+
+```{r}
+
+# prior
+plot(function(x)dgamma(x,2.5,1), xlim = c(0,7), xlab = expression(lambda), ylab = "Prior")
+
+# prior predictive
+plot(0:8,dpois(0:8,2.5),xlim = c(0,8), type="h",  xlab = expression(lambda), ylab = "Prior predictive")
+
+```
+
+
+
+```{r}
+# Prior and posterior
+plot(function(x)dgamma(x,2.5,1),xlim = c(0,8), ylim = c(0,3.5))
+plot(function(x)dgamma(x, 2.5 + sum(dff$goalsScored), 191),add=T,xlim = c(0,8),lty=2)
+abline(v=mufcb1)
+legend("topright", legend = c("Prior", "Posterior"), lty = c(1,2))
+```
+
+```{r}
+attach.jags(fcbpois1)
+plot(density(lambda))
+plot(function(x)dgamma(x, 2.5 + sum(dff$goalsScored), 191),add=T,xlim = c(0,8),lty=2)
+detach.jags()
+```
+
+
+
+
+```{r}
+# posterior predictive, a negative binomial
+plot(0:10,dnbinom(x=0:10, size = 190, mu = mufcb1), type="h", xlab = "y", ylab = "Posterior predictive")
+title(main="FC Barcelona")
+points(0:8, table(dff$goalsScored)/190, col=2, pch=16)
+```
+
+
+```{r}
+# Other way to compute the posterior predictive
+attach.jags(fcbpois1)
+pospre0 = rpois(length(lambda),lambda)
+plot(table(pospre0)/length(pospre0))
+points(0:8, table(dff$goalsScored)/190, col=2, pch=16)
+detach.jags()
+```
+
+
+
+
+
+
+```{r}
+# Posterior predictive by simulating
+# Number of simulations
+N = 10000
+postprefcb = rnbinom(N, size = 190, mu = mufcb1)
+plot(table(postprefcb)/N, xlab = "y", ylab = "Posterior predictive", xlim = c(0,10), ylim = c(0,0.3))
+title(main="FC Barcelona")
+points(0:8, table(dff$goalsScored)/190, col=2, pch=16)
+```
+
+
+
+
+## Hierarc goal count
+
+```{r}
+y = dff$goalsScored[1:20] # one preiod esim season
+n = length(y)
+
+parameters = c("lambda","a","b")
+data = list(y=y,n=n)
+initials = list(list(lambda=rep(0.1,n),a=1,b=1),list(lambda=rep(5,n),a=1,b=1))
+
+Iter <- 2000
+Burn <- 500
+Chain <- 2
+Thin <- 10
+
+fcbpois2 = jags(data, inits = initials, parameters.to.save=parameters, model=paste(path.bug,"goalcount2.bug",sep=""), n.iter=(Iter*Thin+Burn),n.burnin=Burn, n.thin=Thin, n.chains=Chain)
+
+
+print(fcbpois2, digits=4)
+
+# traceplot(fcbpois2, varname=c("lambda", "a", "b"))
+```
+
+
+```{r}
+# Posterior
+attach.jags(fcbpois2)
+plot(density(lambda), xlab=expression(lambda),ylim = c(0,4))
+detach.jags()
+attach.jags(fcbpois1)
+lines(density(lambda),lty=2)
+detach.jags()
+legend("topright",legend=c("Single lambda", "Different lambdas"), lty=c(2,1))
+```
+
+
+
+
+
+
+## Counting process (hierarch/cluster) tämä hyvä
+
+```{r}
+# number of "clusters"
+s = 5
+for (i in 1:s) {
+  n[i] = length(dff$goalsScored[dff$clust == i])
+  y[i] = sum(dff$goalsScored[dff$clust == i])
+}
+
+parameters = c("lambda","a","b")
+data = list(y=y,n=n,s=s)
+initials = list(list(lambda=rep(0.1,s),a=1,b=1),list(lambda=rep(5,s),a=1,b=1))
+
+Iter <- 2500
+Burn <- 500
+Chain <- 2
+Thin <- 1
+
+fcbpois3 = jags(data, parameters.to.save=parameters, model=paste(path.bug,"goalcount3.bug",sep=""), n.iter=(Iter*Thin+Burn),n.burnin=Burn, n.thin=Thin, n.chains=Chain)
+
+
+print(fcbpois3, digits=4)
+
+# traceplot(fcbpois3, varname=c("lambda", "a", "b"))
+```
+
+
+```{r}
+# Posteriors
+attach.jags(fcbpois3)
+plot(density(lambda), xlab=expression(lambda), ylim = c(0,4), main= "FC Barcelona", ylab = expression(paste(pi,"(",lambda,"|y)")))
+detach.jags()
+attach.jags(fcbpois2)
+lines(density(lambda), xlab=expression(lambda), lty=3)
+detach.jags()
+attach.jags(fcbpois1)
+lines(density(lambda),lty=2)
+detach.jags()
+legend("topright",legend=c("M1", "M2", "M3"), lty=c(2,3,1))
+```
+
+
+```{r}
+# Other way to compute the posterior predictive
+attach.jags(fcbpois3)
+pospre3 = rpois(length(lambda),lambda)
+plot(table(pospre3)/length(lambda), xlim = c(0,10))
+points(0:8, table(dff$goalsScored)/190, col=2, pch=16)
+detach.jags()
+```
+
+
+
+```{r}
+# posterior predictive, a negative binomial
+szfcb = n
+muufcb = fcbpois3$BUGSoutput$mean$lambda
+plot(0:10, dnbinom(x=0:10, size = szfcb, mu = muufcb), type="h", xlab = "y", ylab = "Posterior predictive")
+title(main="FC Barcelona")
+points(0:8, table(dff$goalsScored)/190, col=2, pch=16)
+```
+
+
+```{r}
+# Posterior predictive by simulating
+
+# Number of simulations
+M = 10000
+
+postpredfcb = rnbinom(M, size = szfcb, mu = muufcb)
+plot(table(postpredfcb)/M, xlab = "y", ylab = "Posterior predictive", xlim = c(0,10), ylim = c(0,0.3))
+title(main="FC Barcelona")
+points(0:8, table(dff$goalsScored)/190, col=2, pch=16)
+
+er = 0
+for (i in 0:8) {
+  
+}
+```
+
+
+```{r}
+altclst = rep(0,190)
+for (i in 1:190) {
+  if (dff$clust[i] == 5) altclst[i] = 3
+  else if (dff$clust[i] < 3) altclst[i] = 1
+  else altclst[i] = 2
+}
+dff$altclust = altclst
+```
+
+
+
+
+## Counting process (hierarch/cluster) 2
+
+```{r}
+# number of "clusters"
+s = 3
+for (i in 1:s) {
+  n[i] = length(dff$goalsScored[dff$clust == i])
+  y[i] = sum(dff$goalsScored[dff$clust == i])
+}
+
+parameters = c("lambda","a","b")
+data = list(y=y,n=n,s=s)
+initials = list(list(lambda=rep(0.1,s),a=1,b=1),list(lambda=rep(5,s),a=1,b=1))
+
+Iter <- 2500
+Burn <- 500
+Chain <- 2
+Thin <- 1
+
+fcbpois4 = jags(data, parameters.to.save=parameters, model=paste(path.bug,"goalcount3.bug",sep=""), n.iter=(Iter*Thin+Burn),n.burnin=Burn, n.thin=Thin, n.chains=Chain)
+
+
+print(fcbpois4, digits=4)
+
+# traceplot(fcbpois4, varname=c("lambda", "a", "b"))
+```
+
+
+
