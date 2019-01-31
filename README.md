@@ -1,4 +1,4 @@
-# Own stuff
+# Own-stuff
 
 Some playing around with football data, focusing on mathces of FC Barcelona. Some parts are done also for school projects. The used tools are R and Rjags.
 
